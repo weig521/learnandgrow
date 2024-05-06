@@ -1,1 +1,206 @@
+# import libraries needed
+import pandas as pd
+import numpy as np
+from sklearn import metrics
+from sklearn.model_selection import train_test_split
+import warnings
+warnings.filterwarnings('ignore')
+scoreList=[]
 
+# Preprocessing dataset
+# please refer to the description for the dataset download
+df=pd.read_csv('bank-full.csv')
+df.iloc[2:3,:]
+
+df.columns
+
+df=df['age;"job";"marital";"education";"default";"balance";"housing";"loan";"contact";"day";"month";"duration";"campaign";"pdays";"previous";"poutcome";"y"'].str.split(';',expand=True)
+
+df=df.rename(columns={0:'age',1:'job',2:'marital',3:'education',4:'default',5:'balance',6:'housing',7:'loan', \
+                  8:'contact',9:'day',10:'month',11:'duration',12:'campaign',13:'pdays',14:'previous',15:'poutcome',16:'results',})
+df
+
+df['job']=df['job'].str.replace('"',"")
+df['marital']=df['marital'].str.replace('"',"")
+df['education']=df['education'].str.replace('"',"")
+df['default']=df['default'].str.replace('"',"")
+df['housing']=df['loan'].str.replace('"',"")
+df['contact']=df['contact'].str.replace('"',"")
+df['poutcome']=df['poutcome'].str.replace('"',"")
+df['results']=df['results'].str.replace('"',"")
+df['loan']=df['loan'].str.replace('"',"")
+df['month']=df['month'].str.replace('"',"")
+df
+
+# x and y would be the dependent and independent variables
+x=df.iloc[:,:-1]
+y=df.iloc[:,-1:]
+
+x1=x.copy()
+
+# group 12 jobs into 3 groups, 3 marital into 2, education into 2, according to their characters. again, with nowadys compution power, we do not have to do this
+x1.loc[(x1['job']=='admin.') | (x1['job']=='entrepreneur') | (x1['job']=='management'),'job']='business'
+x1.loc[(x1['job']=='blue-collar') | (x1['job']=='housemaid') | (x1['job']=='self-employed')| (x1['job']=='services')| (x1['job']=='technician'),'job']='other'
+x1.loc[(x1['job']=='retired') | (x1['job']=='student') | (x1['job']=='unemployed') | (x1['job']=='unknown'),'job']='none'
+
+x1.loc[(x1['marital']=='divorced') | (x1['marital']=='single'),'marital']='single'
+x1.loc[(x1['marital']=='married'),'marital']='married'
+
+x1.loc[(x1['education']=='primary')|(x1['education']=='secondary')|(x1['education']=='unknown'),'education']='no_post'
+x1.loc[(x1['education']=='tertiary'),'education']='post'
+
+
+#Make Season: Add a season based on the month, will be used to see the most expensive seasons 
+x1.loc[(x1['month']=='dec')|(x1['month']=='jan')|(x1['month']=='feb'),'season']='winter'
+x1.loc[(x1['month']=='mar')|(x1['month']=='apr')|(x1['month']=='may'),'season']='spring'
+x1.loc[(x1['month']=='jun')|(x1['month']=='jul')|(x1['month']=='aug'),'season']='summer'
+x1.loc[(x1['month']=='sep')|(x1['month']=='oct')|(x1['month']=='nov'),'season']='fall'
+x1
+
+test=pd.get_dummies(x1[['job','marital','education','default','housing','loan','contact','poutcome','season']])
+x2=x1.drop(x1[['job','marital','education','default','housing','loan','contact','month','poutcome','season']],axis=1)
+
+x2 = pd.concat([x2, test], axis=1)
+#x2 is trimmed column names
+x2
+X=x2.copy(deep=True)
+# Now the preprocessing work done, there is no na or anything known in advance, otherwise we need to do those work too.
+
+# split data into 70/30 for training and testing
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.30, random_state=100)
+
+# Decision tree 
+from sklearn import tree
+from sklearn.tree import DecisionTreeClassifier
+
+for i in range(2,11):
+    dtClf = DecisionTreeClassifier(random_state = 100,max_leaf_nodes=i)
+    dtClf.fit(X_train, y_train)
+    y_pred = dtClf.predict(X_test)
+    cm = metrics.confusion_matrix(y_test, y_pred)
+    score = (cm[1,1])/(cm[1,1]+cm[1,0])
+    #Returns the best recall score from this model
+    print(score)
+for i in range(1,10):
+    dtClf = DecisionTreeClassifier(random_state = 100,max_depth=i,max_leaf_nodes=10)
+    dtClf.fit(X_train, y_train)
+    y_pred = dtClf.predict(X_test)
+    cm = metrics.confusion_matrix(y_test, y_pred)
+    score = (cm[1,1])/(cm[1,1]+cm[1,0])
+    #Returns the best recall score from this model
+    print(score)
+#based on the code above, we decide to use depth of 6 and leaf nodes of 10
+dtClf = DecisionTreeClassifier(random_state = 100,max_depth=6,max_leaf_nodes=10)
+dtClf.fit(X_train, y_train)
+y_pred = dtClf.predict(X_test)
+y_pred
+
+# below we get the confusion matrix for the DT, TP, and the recall_score accordingly
+cm = metrics.confusion_matrix(y_test, y_pred)
+score = (cm[1,1])/(cm[1,1]+cm[1,0])
+scoreList.append(score)
+print(cm)
+print('The number of people who take the offer as predicted is ',cm[1,1], 'with ratio of ',round(score,4)*100,'%.')
+
+
+# KNN model
+from sklearn.neighbors import KNeighborsClassifier
+#Determining the n_neighbors parameter
+#if you want you can do grid search/random search
+for i in range(2,15):
+    knnClf = KNeighborsClassifier(n_neighbors = i) 
+    knnClf.fit(X_train,y_train)
+    y_pred = knnClf.predict(X_test)
+    cm = metrics.confusion_matrix(y_test, y_pred)
+    score = (cm[1,1])/(cm[1,1]+cm[1,0])
+    #Returns the best recall score from this model
+    print(score)
+knnClf = KNeighborsClassifier(n_neighbors = 2) 
+knnClf.fit(X_train,y_train)
+y_pred = knnClf.predict(X_test)
+y_pred
+
+cm = metrics.confusion_matrix(y_test, y_pred)
+score = (cm[1,1])/(cm[1,1]+cm[1,0])
+scoreList.append(score)
+print(cm)
+print('The number of people correctly predicted is ',(cm[1,1]), 'with an recall of ',round(score,4)*100,'%.')
+
+
+# GradientBoosting
+from sklearn.ensemble import GradientBoostingClassifier
+gradient_booster = GradientBoostingClassifier(learning_rate=0.1,random_state=100)
+gradient_booster.fit(X_train,y_train)
+y_pred = gradient_booster.predict(X_test)
+y_pred
+
+cm = metrics.confusion_matrix(y_test, y_pred)
+score = (cm[1,1])/(cm[1,1]+cm[1,0])
+scoreList.append(score)
+print(cm)
+print('The number of people correctly predicted is ',(cm[1,1]), 'with an recall of ',round(score,4)*100,'%.')
+
+
+# Random Forest
+from sklearn.ensemble import RandomForestClassifier
+for i in range(20,30):
+    rf = RandomForestClassifier(random_state=100,max_depth=i)
+    rf.fit(X_train, y_train)
+    y_pred = rf.predict(X_test)
+    cm = metrics.confusion_matrix(y_test, y_pred)
+    score = (cm[1,1])/(cm[1,1]+cm[1,0])
+    print(score)
+rf = RandomForestClassifier(random_state=100,max_depth=25)
+rf.fit(X_train, y_train)
+y_pred = rf.predict(X_test)
+
+cm = metrics.confusion_matrix(y_test, y_pred)
+score = (cm[1,1])/(cm[1,1]+cm[1,0])
+scoreList.append(score)
+print(cm)
+print('The number of people correctly predicted is ',(cm[1,1]), 'with an recall of ',round(score,4)*100,'%.')
+
+
+# logistic regression
+from sklearn.linear_model import LogisticRegression
+clf = LogisticRegression(random_state=100)
+clf.fit(X_train, y_train)
+y_pred = clf.predict(X_test)
+y_pred
+
+cm = metrics.confusion_matrix(y_test, y_pred)
+score = (cm[1,1])/(cm[1,1]+cm[1,0])
+scoreList.append(score)
+print(cm)
+print('The number of people correctly predicted is ',(cm[1,1]), 'with an recall of ',round(score,4)*100,'%.')
+
+
+# svm
+from sklearn import svm
+svmclf =svm.SVC()
+svmclf.fit(X_train, y_train)
+y_pred = svmclf.predict(X_test)
+y_pred
+
+cm = metrics.confusion_matrix(y_test, y_pred)
+score = (cm[1,1])/(cm[1,1]+cm[1,0])
+scoreList.append(score)
+print(cm)
+print('The number of people correctly predicted is ',(cm[1,1]), 'with an recall of ',round(score,4)*100,'%.')
+
+
+# Naive bayes
+from sklearn.naive_bayes import GaussianNB
+gnb = GaussianNB()
+gnb.fit(X_train,y_train)
+y_pred = gnb.predict(X_test)
+y_pred
+
+cm = metrics.confusion_matrix(y_test, y_pred)
+score = (cm[1,1])/(cm[1,1]+cm[1,0])
+scoreList.append(score)
+print(cm)
+print('The number of people correctly predicted is ',(cm[1,1]), 'with an recall of ',round(score,4)*100,'%.')
+
+max(scoreList) # Naive bayes model best fit
